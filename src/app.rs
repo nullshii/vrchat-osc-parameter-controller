@@ -85,7 +85,7 @@ impl eframe::App for OscApp {
                                             changed = true;
                                         }
                                         if ui.button("+").clicked() {
-                                            *i = i.saturating_sub(1);
+                                            *i = i.saturating_add(1);
                                             changed = true;
                                         }
                                     }
