@@ -1,7 +1,7 @@
 use crate::{
     app::OscApp,
     osc::{OscNotification, run_osc_loop},
-    osc_node_flatten::flatten_osc_nodes,
+    osc_node_flatten::{ElementValue, flatten_osc_nodes},
 };
 
 pub mod app;
@@ -11,7 +11,7 @@ pub mod osc_node_flatten;
 #[tokio::main]
 async fn main() {
     env_logger::builder()
-        .filter_level(log::LevelFilter::Debug)
+        .filter_level(log::LevelFilter::Info)
         .init();
 
     let (tx, mut rx) = tokio::sync::mpsc::channel::<OscNotification>(32);
@@ -50,6 +50,32 @@ async fn main() {
                             // Update your App state (ensure app.parameters is Arc<Mutex<Vec<FlatParameter>>>)
                             if let Ok(mut guard) = shared_parameters.lock() {
                                 *guard = flat_list;
+                            }
+
+                            ctx.request_repaint();
+                        }
+                        OscNotification::PacketReceived { address: _, packet } => {
+                            if let Ok(mut elements) = shared_parameters.lock() {
+                                if let rosc::OscPacket::Message(msg) = packet {
+                                    if let Some(first_arg) = msg.args.first() {
+                                        let incoming_value = match first_arg {
+                                            rosc::OscType::Bool(b) => Some(ElementValue::Bool(*b)),
+                                            rosc::OscType::Float(f) => {
+                                                Some(ElementValue::Float(*f as f64))
+                                            }
+                                            rosc::OscType::Int(i) => Some(ElementValue::Int(*i)),
+                                            _ => None,
+                                        };
+
+                                        if let Some(new_val) = incoming_value {
+                                            if let Some(element) =
+                                                elements.iter_mut().find(|e| e.address == msg.addr)
+                                            {
+                                                element.value = new_val;
+                                            }
+                                        }
+                                    }
+                                }
                             }
 
                             ctx.request_repaint();

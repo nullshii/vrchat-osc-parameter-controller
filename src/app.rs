@@ -22,7 +22,7 @@ impl eframe::App for OscApp {
                         return;
                     }
                     egui::Grid::new("interactive_osc_grid")
-                        .num_columns(3)
+                        .num_columns(2)
                         .spacing([20.0, 8.0])
                         .striped(true)
                         .show(ui, |ui| {
@@ -30,15 +30,7 @@ impl eframe::App for OscApp {
                                 // Column 1: The OSC Address Path
                                 ui.label(&element.address);
 
-                                // Column 2: Access mode Badge
-                                match element.access {
-                                    AccessMode::ReadOnly => ui.weak("Read"),
-                                    AccessMode::WriteOnly => ui.weak("Write"),
-                                    AccessMode::ReadWrite => ui.weak("Read/Write"),
-                                    _ => ui.weak("-"),
-                                };
-
-                                // Column 3: Control Widget (Disabled if ReadOnly)
+                                // Column 2: Control Widget (Disabled if ReadOnly)
                                 let is_editable = matches!(
                                     element.access,
                                     AccessMode::ReadWrite | AccessMode::WriteOnly

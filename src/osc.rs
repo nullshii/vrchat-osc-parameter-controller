@@ -19,6 +19,10 @@ pub enum OscNotification {
         address: SocketAddr,
         parameters: OscNode,
     },
+    PacketReceived {
+        address: SocketAddr,
+        packet: OscPacket,
+    },
 }
 
 pub async fn run_osc_loop(tx: Sender<OscNotification>) {
@@ -92,38 +96,51 @@ pub async fn run_osc_loop(tx: Sender<OscNotification>) {
         .register("HeartRate-Service", root_node, move |packet| {
             let current_addr = address_for_register.lock().ok().and_then(|guard| *guard);
 
-            if let OscPacket::Message(msg) = packet
-                && msg.addr == "/avatar/change"
+            if let OscPacket::Message(ref msg) = packet
                 && let Some(addr) = current_addr
             {
                 let vrchat_osc_task = vrchat_osc_for_register.clone();
                 let tx_task = tx_for_register.clone();
 
-                tokio::spawn(async move {
-                    let mut counter = 0;
-                    let params = loop {
-                        if counter == RETRY_COUNT {
-                            panic!("[OSC] Failed to get parameters after {} tries", RETRY_COUNT);
-                        }
-                        counter += 1;
-
-                        match vrchat_osc_task
-                            .get_parameter_from_addr("/avatar/parameters", addr)
-                            .await
-                        {
-                            Ok(v) => break v,
-                            Err(_) => {
-                                tokio::time::sleep(Duration::from_secs(1)).await;
+                if msg.addr == "/avatar/change" {
+                    tokio::spawn(async move {
+                        let mut counter = 0;
+                        let params = loop {
+                            if counter == RETRY_COUNT {
+                                panic!(
+                                    "[OSC] Failed to get parameters after {} tries",
+                                    RETRY_COUNT
+                                );
                             }
-                        }
-                    };
-                    let _ = tx_task
-                        .send(OscNotification::AvatarParametersUpdated {
-                            address: addr,
-                            parameters: params,
-                        })
-                        .await;
-                });
+                            counter += 1;
+
+                            match vrchat_osc_task
+                                .get_parameter_from_addr("/avatar/parameters", addr)
+                                .await
+                            {
+                                Ok(v) => break v,
+                                Err(_) => {
+                                    tokio::time::sleep(Duration::from_secs(1)).await;
+                                }
+                            }
+                        };
+                        let _ = tx_task
+                            .send(OscNotification::AvatarParametersUpdated {
+                                address: addr,
+                                parameters: params,
+                            })
+                            .await;
+                    });
+                } else {
+                    tokio::spawn(async move {
+                        let _ = tx_task
+                            .send(OscNotification::PacketReceived {
+                                address: addr,
+                                packet,
+                            })
+                            .await;
+                    });
+                }
             }
         })
         .await
