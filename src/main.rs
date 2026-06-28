@@ -67,7 +67,6 @@ async fn main() {
                                 }
                             });
 
-                            // Update your App state (ensure app.parameters is Arc<Mutex<Vec<FlatParameter>>>)
                             if let Ok(mut guard) = shared_parameters.lock() {
                                 *guard = flat_list;
                             }
