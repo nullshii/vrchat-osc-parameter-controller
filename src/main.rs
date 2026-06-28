@@ -29,7 +29,7 @@ async fn main() {
     let shared_parameters = app.parameters.clone();
 
     eframe::run_native(
-        "My egui App",
+        "VRChat OSC Controller",
         options,
         Box::new(move |cc| {
             let ctx = cc.egui_ctx.clone();
@@ -45,7 +45,27 @@ async fn main() {
                             flatten_osc_nodes(&parameters, &mut flat_list);
 
                             // Sort alphabetically by name for a cleaner UI experience
-                            flat_list.sort_by(|a, b| a.address.cmp(&b.address));
+                            flat_list.sort_by(|a, b| {
+                                let access_priority =
+                                    |mode: &vrchat_osc::models::AccessMode| match mode {
+                                        vrchat_osc::models::AccessMode::ReadWrite => 0,
+                                        vrchat_osc::models::AccessMode::ReadOnly => 1,
+                                        vrchat_osc::models::AccessMode::WriteOnly => 2,
+                                        _ => 3, // AccessMode::None or others
+                                    };
+
+                                let weight_a = access_priority(&a.access);
+                                let weight_b = access_priority(&b.access);
+
+                                match weight_a.cmp(&weight_b) {
+                                    std::cmp::Ordering::Equal => {
+                                        // 3. Secondary Sort: If access modes are identical,
+                                        // sort alphabetically by address so it stays clean!
+                                        a.address.cmp(&b.address)
+                                    }
+                                    other => other,
+                                }
+                            });
 
                             // Update your App state (ensure app.parameters is Arc<Mutex<Vec<FlatParameter>>>)
                             if let Ok(mut guard) = shared_parameters.lock() {
