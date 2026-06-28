@@ -77,7 +77,15 @@ impl eframe::App for OscApp {
                                         }
                                     }
                                     ElementValue::Int(i) => {
+                                        if ui.button("-").clicked() {
+                                            *i = i.saturating_sub(1);
+                                            changed = true;
+                                        }
                                         if ui.add(egui::DragValue::new(i)).changed() {
+                                            changed = true;
+                                        }
+                                        if ui.button("+").clicked() {
+                                            *i = i.saturating_sub(1);
                                             changed = true;
                                         }
                                     }
