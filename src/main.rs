@@ -1,10 +1,12 @@
 use crate::{
     app::OscApp,
     osc::{OscNotification, run_osc_loop},
+    osc_node_flatten::flatten_osc_nodes,
 };
 
 pub mod app;
 pub mod osc;
+pub mod osc_node_flatten;
 
 #[tokio::main]
 async fn main() {
@@ -36,17 +38,18 @@ async fn main() {
                 while let Some(notification) = rx.recv().await {
                     match notification {
                         OscNotification::AvatarParametersUpdated {
-                            address,
+                            address: _,
                             parameters,
                         } => {
-                            log::info!(
-                                "[Main Task] Caught update from {}! Params: {:?}",
-                                address,
-                                parameters
-                            );
+                            let mut flat_list = Vec::new();
+                            flatten_osc_nodes(&parameters, &mut flat_list);
 
+                            // Sort alphabetically by name for a cleaner UI experience
+                            flat_list.sort_by(|a, b| a.address.cmp(&b.address));
+
+                            // Update your App state (ensure app.parameters is Arc<Mutex<Vec<FlatParameter>>>)
                             if let Ok(mut guard) = shared_parameters.lock() {
-                                *guard = Some(parameters);
+                                *guard = flat_list;
                             }
 
                             ctx.request_repaint();
