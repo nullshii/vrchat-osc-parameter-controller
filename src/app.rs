@@ -1,11 +1,17 @@
 use std::sync::{Arc, Mutex};
 
+use rosc::OscPacket;
+use tokio::sync::mpsc::Sender;
 use vrchat_osc::models::AccessMode;
 
-use crate::osc_node_flatten::{ElementValue, OscElement};
+use crate::{
+    osc::OscNotification,
+    osc_node_flatten::{ElementValue, OscElement},
+};
 
 pub struct OscApp {
     pub parameters: Arc<Mutex<Vec<OscElement>>>,
+    tx: Sender<OscNotification>,
 }
 
 impl eframe::App for OscApp {
@@ -69,13 +75,21 @@ impl eframe::App for OscApp {
 
                                     // Send back to VRChat if modified!
                                     if changed {
-                                        log::info!(
-                                            "Value changed for {}! New state: {:?}",
-                                            element.address,
-                                            element.value
-                                        );
-                                        // TODO: Pass a sender channel to your OscApp state
-                                        // so you can forward this change to `vrchat_osc.send_back(...)`
+                                        let tx_task = self.tx.clone();
+                                        let target_address = element.address.clone();
+                                        let target_osc_value: rosc::OscType =
+                                            element.value.clone().into();
+
+                                        tokio::spawn(async move {
+                                            let _ = tx_task
+                                                .send(OscNotification::SendUpdatedParameter {
+                                                    packet: OscPacket::Message(rosc::OscMessage {
+                                                        addr: target_address,
+                                                        args: vec![target_osc_value.into()],
+                                                    }),
+                                                })
+                                                .await;
+                                        });
                                     }
                                 });
 
@@ -90,9 +104,10 @@ impl eframe::App for OscApp {
 }
 
 impl OscApp {
-    pub fn new() -> Self {
+    pub fn new(tx: Sender<OscNotification>) -> Self {
         Self {
             parameters: Arc::new(Mutex::new(vec![])),
+            tx,
         }
     }
 }

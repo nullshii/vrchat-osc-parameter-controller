@@ -1,3 +1,4 @@
+use rosc::OscType;
 use vrchat_osc::models::{AccessMode, OscNode, OscValue};
 
 #[derive(Clone, Debug)]
@@ -13,6 +14,17 @@ pub enum ElementValue {
     Float(f64),
     Int(i32),
     Unsupported(String),
+}
+
+impl Into<OscType> for ElementValue {
+    fn into(self) -> OscType {
+        match self {
+            ElementValue::Bool(v) => OscType::Bool(v),
+            ElementValue::Float(v) => OscType::Float(v as f32),
+            ElementValue::Int(v) => OscType::Int(v),
+            ElementValue::Unsupported(_) => OscType::Nil,
+        }
+    }
 }
 
 pub fn flatten_osc_nodes(node: &OscNode, list: &mut Vec<OscElement>) {

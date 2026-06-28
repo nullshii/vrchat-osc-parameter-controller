@@ -5,7 +5,7 @@ use std::{
 };
 
 use rosc::OscPacket;
-use tokio::sync::mpsc::Sender;
+use tokio::sync::mpsc::{Receiver, Sender};
 use vrchat_osc::{
     VRChatOSC,
     models::{OscNode, OscRootNode},
@@ -23,9 +23,12 @@ pub enum OscNotification {
         address: SocketAddr,
         packet: OscPacket,
     },
+    SendUpdatedParameter {
+        packet: OscPacket,
+    },
 }
 
-pub async fn run_osc_loop(tx: Sender<OscNotification>) {
+pub async fn run_osc_loop(tx: Sender<OscNotification>, mut rx: Receiver<OscNotification>) {
     let vrchat_osc = match VRChatOSC::new(None).await {
         Ok(v) => v,
         Err(e) => {
@@ -147,5 +150,19 @@ pub async fn run_osc_loop(tx: Sender<OscNotification>) {
     {
         Ok(_) => log::info!("[OSC] service registered"),
         Err(e) => log::warn!("[OSC] Failed to register client: {}", e),
+    }
+
+    while let Some(notification) = rx.recv().await {
+        match notification {
+            OscNotification::SendUpdatedParameter { packet } => {
+                match vrchat_osc.send(packet, "VRChat-Client-*").await {
+                    Ok(_) => {}
+                    Err(e) => {
+                        log::error!("[OSC] Failed to send OSC message: {}", e);
+                    }
+                };
+            }
+            _ => {}
+        }
     }
 }

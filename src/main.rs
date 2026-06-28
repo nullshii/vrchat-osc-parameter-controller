@@ -15,9 +15,10 @@ async fn main() {
         .init();
 
     let (tx, mut rx) = tokio::sync::mpsc::channel::<OscNotification>(32);
+    let (s_tx, s_rx) = tokio::sync::mpsc::channel::<OscNotification>(32);
 
     let _ = tokio::spawn(async move {
-        run_osc_loop(tx).await;
+        run_osc_loop(tx, s_rx).await;
     });
 
     let options = eframe::NativeOptions {
@@ -25,7 +26,7 @@ async fn main() {
         ..Default::default()
     };
 
-    let app = OscApp::new();
+    let app = OscApp::new(s_tx);
     let shared_parameters = app.parameters.clone();
 
     eframe::run_native(
@@ -99,6 +100,7 @@ async fn main() {
 
                             ctx.request_repaint();
                         }
+                        OscNotification::SendUpdatedParameter { packet: _ } => {}
                     }
                 }
             });
