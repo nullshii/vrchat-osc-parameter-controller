@@ -6,7 +6,10 @@ use std::{
 
 use rosc::OscPacket;
 use tokio::sync::mpsc::Sender;
-use vrchat_osc::{VRChatOSC, models::OscRootNode};
+use vrchat_osc::{
+    VRChatOSC,
+    models::{OscNode, OscRootNode},
+};
 
 const RETRY_COUNT: u8 = 30;
 
@@ -14,7 +17,7 @@ const RETRY_COUNT: u8 = 30;
 pub enum OscNotification {
     AvatarParametersUpdated {
         address: SocketAddr,
-        parameters: vrchat_osc::models::OscNode,
+        parameters: OscNode,
     },
 }
 
