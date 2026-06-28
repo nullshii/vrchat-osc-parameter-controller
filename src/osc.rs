@@ -5,11 +5,20 @@ use std::{
 };
 
 use rosc::OscPacket;
+use tokio::sync::mpsc::Sender;
 use vrchat_osc::{VRChatOSC, models::OscRootNode};
 
 const RETRY_COUNT: u8 = 30;
 
-pub async fn run_osc_loop() {
+#[derive(Debug)]
+pub enum OscNotification {
+    AvatarParametersUpdated {
+        address: SocketAddr,
+        parameters: vrchat_osc::models::OscNode,
+    },
+}
+
+pub async fn run_osc_loop(tx: Sender<OscNotification>) {
     let vrchat_osc = match VRChatOSC::new(None).await {
         Ok(v) => v,
         Err(e) => {
@@ -24,12 +33,14 @@ pub async fn run_osc_loop() {
     // Clone specifically for the on_connect block
     let vrchat_osc_for_connect = vrchat_osc.clone();
     let address_for_connect = address_shared.clone();
+    let tx_for_connect = tx.clone();
 
     vrchat_osc
         .on_connect(move |res| match res {
             vrchat_osc::ServiceType::OscQuery(_name, addr) => {
                 let vrchat_osc_task = vrchat_osc_for_connect.clone();
                 let address_task = address_for_connect.clone();
+                let tx_task = tx_for_connect.clone();
 
                 tokio::spawn(async move {
                     let mut counter = 0;
@@ -55,7 +66,12 @@ pub async fn run_osc_loop() {
                             }
                         }
                     };
-                    log::info!("Received parameters: {:?}", params);
+                    let _ = tx_task
+                        .send(OscNotification::AvatarParametersUpdated {
+                            address: addr,
+                            parameters: params,
+                        })
+                        .await;
                 });
             }
             _ => {}
@@ -63,9 +79,11 @@ pub async fn run_osc_loop() {
         .await;
 
     let root_node = OscRootNode::new().with_avatar();
+
     // Clone specifically for the register block
     let vrchat_osc_for_register = vrchat_osc.clone();
     let address_for_register = address_shared.clone();
+    let tx_for_register = tx.clone();
 
     match vrchat_osc
         .register("HeartRate-Service", root_node, move |packet| {
@@ -76,6 +94,8 @@ pub async fn run_osc_loop() {
                 && let Some(addr) = current_addr
             {
                 let vrchat_osc_task = vrchat_osc_for_register.clone();
+                let tx_task = tx_for_register.clone();
+
                 tokio::spawn(async move {
                     let mut counter = 0;
                     let params = loop {
@@ -94,7 +114,12 @@ pub async fn run_osc_loop() {
                             }
                         }
                     };
-                    log::info!("Received parameters: {:?}", params);
+                    let _ = tx_task
+                        .send(OscNotification::AvatarParametersUpdated {
+                            address: addr,
+                            parameters: params,
+                        })
+                        .await;
                 });
             }
         })
